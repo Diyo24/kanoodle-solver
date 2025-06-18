@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kanoodle Solver</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <h1>🧩 Kanoodle Solver</h1>
+        
+        <div class="controls">
+            <button id="solve-btn">Solve Puzzle</button>
+            <button id="clear-btn">Clear Board</button>
+            <button id="new-puzzle-btn">New Puzzle</button>
+        </div>
+
+        <div class="main-content">
+            <div class="piece-library">
+                <h3>Puzzle Pieces</h3>
+                <div id="pieces-container"></div>
+            </div>
+
+            <div class="puzzle-board">
+                <h3>Puzzle Board</h3>
+                <div id="board-grid"></div>
+            </div>
+        </div>
+
+        <div id="solution-display" class="solution hidden">
+            <h3>Solution Found!</h3>
+            <div id="solution-steps"></div>
+            <button id="apply-solution-btn">Apply Solution</button>
+            <button id="close-solution-btn">Close</button>
+        </div>
+
+        <div id="loading" class="loading hidden">
+            <div class="spinner"></div>
+            <p>Solving puzzle...</p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
