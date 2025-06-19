@@ -19,9 +19,25 @@
         <div class="main-content">
             <div class="piece-library">
                 <h3>Puzzle Pieces</h3>
+                
+                <!-- Rotation Controls -->
+                <div id="rotation-controls" class="rotation-controls hidden">
+                    <h4>🔧 Selected Piece Controls</h4>
+                    <div class="rotation-buttons">
+                        <button id="rotate-left-btn" title="Rotate 90° Left">↶ Rotate Left</button>
+                        <button id="rotate-right-btn" title="Rotate 90° Right">↷ Rotate Right</button>
+                        <button id="flip-horizontal-btn" title="Flip Horizontally">↔ Flip H</button>
+                        <button id="flip-vertical-btn" title="Flip Vertically">↕ Flip V</button>
+                        <button id="reset-piece-btn" title="Reset to Original">⟲ Reset</button>
+                    </div>
+                    <div id="selected-piece-preview">
+                        <p>Select a piece to see preview</p>
+                    </div>
+                </div>
+                
                 <div id="pieces-container"></div>
             </div>
-
+            
             <div class="puzzle-board">
                 <h3>Puzzle Board</h3>
                 <div id="board-grid"></div>

@@ -1,0 +1,35 @@
+cabal-version:      3.0
+name:               kanoodle-solver
+version:            0.1.0.0
+synopsis:           Kanoodle puzzle solver with web API
+author:             Diyar Polat
+maintainer:         diyarpolat24@gmx.de
+category:           Game
+build-type:         Simple
+
+library
+    exposed-modules:  Kanoodle.Types
+                    , Kanoodle.Solver
+                    , Kanoodle.WebServer
+    build-depends:    base ^>=4.17.0.0
+                    , aeson
+                    , wai
+                    , warp
+                    , servant
+                    , servant-server
+                    , containers
+                    , vector
+                    , text
+                    , bytestring
+                    , time
+                    , wai-cors
+                    , array
+    hs-source-dirs:   src
+    default-language: Haskell2010
+
+executable kanoodle-solver
+    main-is:          Main.hs
+    build-depends:    base ^>=4.17.0.0
+                    , kanoodle-solver
+    hs-source-dirs:   app
+    default-language: Haskell2010

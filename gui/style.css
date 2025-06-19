@@ -190,8 +190,8 @@ h3 {
 }
 
 .board-cell:hover {
-    background: #e3f2fd;
-    transform: scale(1.1);
+    transform: scale(1.02);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
 }
 
 .board-cell.occupied {
@@ -210,6 +210,14 @@ h3 {
     border: 3px solid #f44336 !important;
     background: rgba(244, 67, 54, 0.3) !important;
     box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
+    transform: scale(1.05);
+    z-index: 10;
+    position: relative;
+}
+
+/* Preview cell styling */
+.board-cell.preview-cell {
+    transition: all 0.2s ease;
     transform: scale(1.05);
     z-index: 10;
     position: relative;
@@ -262,6 +270,178 @@ h3 {
     display: none;
 }
 
+/* Success Overlay */
+.success-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 2000;
+    animation: fadeIn 0.3s ease;
+}
+
+.success-message {
+    background: linear-gradient(135deg, #4CAF50, #66BB6A);
+    color: white;
+    padding: 40px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 15px 35px rgba(0,0,0,0.3);
+    transform: scale(0.9);
+    animation: popIn 0.3s ease forwards;
+    max-width: 400px;
+    width: 90%;
+}
+
+.success-message h2 {
+    margin: 0 0 15px 0;
+    font-size: 2rem;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
+}
+
+.success-message p {
+    margin: 0 0 25px 0;
+    font-size: 1.1rem;
+    opacity: 0.9;
+}
+
+.success-buttons {
+    display: flex;
+    gap: 15px;
+    justify-content: center;
+}
+
+.success-buttons button {
+    padding: 12px 24px;
+    border: 2px solid white;
+    background: transparent;
+    color: white;
+    border-radius: 25px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s ease;
+}
+
+.success-buttons button:hover {
+    background: white;
+    color: #4CAF50;
+    transform: translateY(-2px);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes popIn {
+    from { 
+        opacity: 0; 
+        transform: scale(0.5); 
+    }
+    to { 
+        opacity: 1; 
+        transform: scale(1); 
+    }
+}
+
+/* Rotation Controls Styles */
+.rotation-controls {
+    background: linear-gradient(135deg, #f0f8ff, #e6f3ff);
+    border: 2px solid #4CAF50;
+    border-radius: 12px;
+    padding: 20px;
+    margin-bottom: 20px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.rotation-controls.hidden {
+    display: none;
+}
+
+.rotation-controls h4 {
+    margin: 0 0 15px 0;
+    color: #2e7d32;
+    font-size: 1.2rem;
+    text-align: center;
+    font-weight: bold;
+}
+
+.rotation-buttons {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.rotation-buttons button {
+    padding: 12px 8px;
+    font-size: 14px;
+    font-weight: bold;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: linear-gradient(135deg, #2196F3, #1976D2);
+    color: white;
+    transition: all 0.3s ease;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+.rotation-buttons button:hover {
+    background: linear-gradient(135deg, #1976D2, #1565C0);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+}
+
+.rotation-buttons button:active {
+    transform: translateY(0);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+}
+
+#selected-piece-preview {
+    background: white;
+    border: 2px dashed #ddd;
+    border-radius: 8px;
+    padding: 15px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 80px;
+    transition: all 0.3s ease;
+}
+
+#selected-piece-preview.has-piece {
+    border-color: #4CAF50;
+    border-style: solid;
+    background: #f9fff9;
+}
+
+.preview-piece {
+    display: inline-grid;
+    gap: 2px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    padding: 4px;
+    background: white;
+}
+
+.preview-cell {
+    width: 16px;
+    height: 16px;
+    border-radius: 3px;
+    border: 1px solid rgba(0,0,0,0.1);
+    transition: all 0.2s ease;
+}
+
+.preview-cell.filled {
+    border-color: rgba(0,0,0,0.3);
+    box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+}
+
 /* Responsive Design */
 @media (max-width: 768px) {
     .main-content {
@@ -285,5 +465,28 @@ h3 {
     .piece-cell {
         width: 12px;
         height: 12px;
+    }
+    
+    .rotation-buttons {
+        grid-template-columns: repeat(2, 1fr);
+    }
+    
+    .rotation-controls {
+        padding: 15px;
+    }
+    
+    .rotation-controls h4 {
+        font-size: 1.1rem;
+    }
+    
+    .rotation-buttons button {
+        padding: 10px 6px;
+        font-size: 12px;
+    }
+}
+
+@media (max-width: 480px) {
+    .rotation-buttons {
+        grid-template-columns: 1fr;
     }
 }
