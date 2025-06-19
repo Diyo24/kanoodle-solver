@@ -144,7 +144,15 @@ class KanoodleSolver {
     const container = document.getElementById("pieces-container");
     container.innerHTML = "";
 
+    // Get list of pieces already placed on the board
+    const placedPieceIds = this.getPlacedPieceIds();
+
     this.pieces.forEach((piece) => {
+      // Skip rendering pieces that are already placed
+      if (placedPieceIds.includes(piece.id)) {
+        return;
+      }
+
       const pieceWrapper = document.createElement("div");
       pieceWrapper.className = "piece-wrapper";
       pieceWrapper.dataset.pieceId = piece.id;
@@ -402,6 +410,7 @@ class KanoodleSolver {
         this.setPieceOnBoard(piece, piece.position.x, piece.position.y);
       });
       this.renderBoard();
+      this.renderPieces();
     }
     this.closeSolution();
   }
@@ -411,6 +420,7 @@ class KanoodleSolver {
     this.selectedPiece = null;
     this.clearPreview();
     this.renderBoard();
+    this.renderPieces(); 
 
     // Clear piece selection - target piece-wrapper instead of puzzle-piece
     document.querySelectorAll(".piece-wrapper").forEach((el) => {
@@ -425,9 +435,21 @@ class KanoodleSolver {
     this.solution = null;
     this.renderPieces();
   }
+
+  getPlacedPieceIds() {
+    const placedIds = [];
+    for (let y = 0; y < this.board.length; y++) {
+      for (let x = 0; x < this.board[y].length; x++) {
+        const cell = this.board[y][x];
+        if (cell && cell.pieceId !== undefined && !placedIds.includes(cell.pieceId)) {
+          placedIds.push(cell.pieceId);
+        }
+      }
+    }
+    return placedIds;
+  }
 }
 
-// Initialize the game when page loads
 document.addEventListener("DOMContentLoaded", () => {
   new KanoodleSolver();
 });
