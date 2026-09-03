@@ -1,0 +1,32 @@
+[Unit]
+Description=Kanoodle Solver
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kanoodle
+ExecStart=/opt/kanoodle/bin/kanoodle-solver
+Restart=always
+RestartSec=5
+
+# Bind to loopback only: cloudflared reaches it locally, nothing else can.
+Environment=KANOODLE_HOST=127.0.0.1
+Environment=KANOODLE_PORT=8080
+Environment=KANOODLE_STATIC_DIR=/opt/kanoodle/gui
+Environment=KANOODLE_TIMEOUT_SECONDS=10
+
+# The solver is CPU-bound backtracking; keep one bad request from
+# starving the rest of the box.
+CPUQuota=200%
+MemoryMax=1G
+
+DynamicUser=yes
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadOnlyPaths=/opt/kanoodle
+
+[Install]
+WantedBy=multi-user.target

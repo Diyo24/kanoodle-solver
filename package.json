@@ -3,14 +3,8 @@
   "version": "1.0.0",
   "description": "Kanoodle puzzle solver with Haskell backend and HTML frontend",
   "scripts": {
-    "dev": "concurrently \"npm run backend\" \"npm run frontend\"",
-    "backend": "cd haskell-solver && cabal run kanoodle-solver",
-    "frontend": "cd gui && npx http-server -p 3000 -c-1",
     "build-backend": "cd haskell-solver && cabal build",
-    "start": "npm run build-backend && npm run dev"
-  },
-  "devDependencies": {
-    "concurrently": "^8.2.2",
-    "http-server": "^14.1.1"
+    "backend": "cd haskell-solver && cabal run kanoodle-solver",
+    "start": "npm run build-backend && npm run backend"
   }
 }

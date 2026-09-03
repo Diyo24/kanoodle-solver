@@ -1,0 +1,10 @@
+# Place at /etc/cloudflared/config.yml on the Xavier.
+# Replace <TUNNEL-ID> and the hostname with your own.
+
+tunnel: <TUNNEL-ID>
+credentials-file: /etc/cloudflared/<TUNNEL-ID>.json
+
+ingress:
+  - hostname: kanoodle.example.com
+    service: http://localhost:8080
+  - service: http_status:404

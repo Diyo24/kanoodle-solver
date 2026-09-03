@@ -12,15 +12,36 @@ import Kanoodle.Solver
 import Servant
 import Network.Wai
 import Network.Wai.Handler.Warp
-import Network.Wai.Middleware.Cors
+import Data.Maybe (fromMaybe)
+import Data.String (fromString)
 import Data.Time.Clock
+import Control.Exception (evaluate)
 import Control.Monad.IO.Class (liftIO)
+import System.Environment (lookupEnv)
+import System.Timeout (timeout)
+import Text.Read (readMaybe)
+
+-- ============================================================================
+-- CONFIGURATION
+-- ============================================================================
+
+-- | Read an environment variable, falling back to a default on absence or
+-- unparseable input.
+envWithDefault :: Read a => String -> a -> IO a
+envWithDefault name fallback = do
+  raw <- lookupEnv name
+  return $ fromMaybe fallback (raw >>= readMaybe)
 
 -- ============================================================================
 -- API DEFINITION
 -- ============================================================================
 
-type KanoodleAPI = "solve" :> ReqBody '[JSON] SolveRequest :> Post '[JSON] SolveResponse
+-- | The solver endpoint, plus a static file server for the GUI. Serving both
+-- from one origin means the browser makes same-origin requests, so no CORS
+-- headers are needed.
+type KanoodleAPI =
+       "solve" :> ReqBody '[JSON] SolveRequest :> Post '[JSON] SolveResponse
+  :<|> Raw
 
 kanoodleAPI :: Proxy KanoodleAPI
 kanoodleAPI = Proxy
@@ -29,30 +50,44 @@ kanoodleAPI = Proxy
 -- API HANDLERS
 -- ============================================================================
 
--- | Handle solve requests
-solveHandler :: SolveRequest -> Handler SolveResponse
-solveHandler req = liftIO $ do
+-- | Handle solve requests, abandoning the search if it exceeds the budget.
+solveHandler :: Int -> SolveRequest -> Handler SolveResponse
+solveHandler timeoutSeconds req = liftIO $ do
   startTime <- getCurrentTime
-  
+
   let board = reqBoard req
       pieces = reqPieces req
-      result = solvePuzzle board pieces
-  
+
+  -- The search is unbounded backtracking, so bound it here. Forcing the list
+  -- length inside the timeout keeps the work from escaping as a lazy thunk
+  -- that would otherwise be evaluated later during JSON encoding.
+  outcome <- timeout (timeoutSeconds * 1000000) $ do
+    let result = solvePuzzle board pieces
+    _ <- evaluate (fmap length result)
+    return result
+
   endTime <- getCurrentTime
   let timeDiff = diffUTCTime endTime startTime
       solvingTimeMs = round (timeDiff * 1000)
-  
-  return $ case result of
-    Just sol -> SolveResponse
+
+  return $ case outcome of
+    Just (Just sol) -> SolveResponse
       { respSuccess = True
       , respSolution = sol
       , respMessage = "Solution found!"
       , respSolvingTime = solvingTimeMs
       }
-    Nothing -> SolveResponse
+    Just Nothing -> SolveResponse
       { respSuccess = False
       , respSolution = []
       , respMessage = "No solution found"
+      , respSolvingTime = solvingTimeMs
+      }
+    Nothing -> SolveResponse
+      { respSuccess = False
+      , respSolution = []
+      , respMessage = "Search timed out after "
+                      ++ show timeoutSeconds ++ "s"
       , respSolvingTime = solvingTimeMs
       }
 
@@ -60,26 +95,23 @@ solveHandler req = liftIO $ do
 -- APPLICATION SETUP
 -- ============================================================================
 
--- | Create the Servant application
-app :: Application
-app = cors (const $ Just corsPolicy) $ serve kanoodleAPI solveHandler
-  where
-    corsPolicy = CorsResourcePolicy
-      { corsOrigins = Nothing
-      , corsMethods = ["GET", "POST", "OPTIONS"]
-      , corsRequestHeaders = ["Content-Type"]
-      , corsExposedHeaders = Nothing
-      , corsMaxAge = Nothing
-      , corsVaryOrigin = False
-      , corsRequireOrigin = False
-      , corsIgnoreFailures = False
-      }
+-- | Create the Servant application, serving the GUI from the given directory.
+app :: FilePath -> Int -> Application
+app staticDir timeoutSeconds =
+  serve kanoodleAPI (solveHandler timeoutSeconds :<|> serveDirectoryFileServer staticDir)
 
 -- | Run the web server
 runServer :: IO ()
 runServer = do
-  putStrLn "Starting Kanoodle Solver server on http://localhost:8080"
-  putStrLn "API endpoints:"
-  putStrLn "  POST /solve - Solve a Kanoodle puzzle"
+  port <- envWithDefault "KANOODLE_PORT" (8080 :: Int)
+  timeoutSeconds <- envWithDefault "KANOODLE_TIMEOUT_SECONDS" (10 :: Int)
+  staticDir <- fromMaybe "../gui" <$> lookupEnv "KANOODLE_STATIC_DIR"
+  host <- fromMaybe "127.0.0.1" <$> lookupEnv "KANOODLE_HOST"
+
+  putStrLn $ "Starting Kanoodle Solver on http://" ++ host ++ ":" ++ show port
+  putStrLn $ "  serving GUI from: " ++ staticDir
+  putStrLn $ "  solve timeout:    " ++ show timeoutSeconds ++ "s"
   putStrLn ""
-  run 8080 app
+
+  let settings = setPort port $ setHost (fromString host) defaultSettings
+  runSettings settings (app staticDir timeoutSeconds)

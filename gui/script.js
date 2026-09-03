@@ -693,7 +693,7 @@ isValidPreviewPosition(piece, x, y) {
     console.log("Sending request data:", JSON.stringify(requestData, null, 2));
 
     try {
-        const response = await fetch("http://localhost:8080/solve", {
+        const response = await fetch("/solve", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(requestData),
