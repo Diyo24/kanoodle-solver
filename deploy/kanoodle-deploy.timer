@@ -1,5 +1,5 @@
 [Unit]
-Description=Check git for new Kanoodle commits
+Description=Check git for new Kanoodle releases
 
 [Timer]
 OnBootSec=3min

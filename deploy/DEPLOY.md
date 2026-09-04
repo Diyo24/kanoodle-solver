@@ -113,11 +113,22 @@ cloudflared tunnel route dns kanoodle kanoodle.example.com
 
 Neither form opens a router port or exposes your home IP.
 
-## 5. Automatic redeploy on push
+## 5. Automatic redeploy on release
 
-`install.sh` registers a timer that polls GitHub every five minutes. On a new
-commit it pulls, rebuilds, and restarts the server — but only if the build
-succeeded, so a commit that fails to compile leaves the running version up.
+`install.sh` registers a timer that polls GitHub every five minutes and
+watches the **`release` branch**, not `main`. On a new commit there it pulls,
+rebuilds, and restarts the server — but only if the build succeeded, so a
+commit that fails to compile leaves the running version up.
+
+Day-to-day work on `main` never touches the live site. Publishing is a
+deliberate act:
+
+```sh
+git checkout release && git merge main && git push origin release
+```
+
+Within five minutes the board picks it up. Note that compiling is the only
+gate — nothing verifies the solver is correct, so test before promoting.
 
 This requires the checkout on the board to be a real clone:
 
@@ -125,8 +136,8 @@ This requires the checkout on the board to be a real clone:
 cd ~/kanoodle-solver
 git init -q
 git remote add origin https://github.com/Diyo24/kanoodle-solver.git
-git fetch origin main
-git reset --hard origin/main
+git fetch origin release
+git checkout -B release origin/release
 ```
 
 Watch it:

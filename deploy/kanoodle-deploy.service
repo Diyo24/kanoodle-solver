@@ -1,5 +1,5 @@
 [Unit]
-Description=Pull, build and redeploy Kanoodle from git
+Description=Pull, build and redeploy Kanoodle from the release branch
 After=network-online.target
 Wants=network-online.target
 
@@ -7,7 +7,7 @@ Wants=network-online.target
 Type=oneshot
 ExecStart=/opt/kanoodle/auto-deploy.sh
 Environment=BUILD_USER=esel
-Environment=BRANCH=main
+Environment=BRANCH=release
 # A cold build of the dependency tree on Carmel cores is slow; later builds
 # are incremental. Do not let systemd kill one midway.
 TimeoutStartSec=3600

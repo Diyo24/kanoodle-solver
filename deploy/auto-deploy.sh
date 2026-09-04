@@ -5,7 +5,7 @@
 set -euo pipefail
 
 BUILD_USER="${BUILD_USER:-esel}"
-BRANCH="${BRANCH:-main}"
+BRANCH="${BRANCH:-release}"
 USER_HOME="$(getent passwd "$BUILD_USER" | cut -d: -f6)"
 SRC="${SRC:-$USER_HOME/kanoodle-solver}"
 
