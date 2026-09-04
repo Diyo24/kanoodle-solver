@@ -9,7 +9,9 @@ BRANCH="${BRANCH:-release}"
 USER_HOME="$(getent passwd "$BUILD_USER" | cut -d: -f6)"
 SRC="${SRC:-$USER_HOME/kanoodle-solver}"
 
-as_user() { runuser -u "$BUILD_USER" -- "$@"; }
+# runuser keeps the caller's environment, so HOME would still be /root and
+# git would look for ssh keys and config in the wrong place.
+as_user() { runuser -u "$BUILD_USER" -- env HOME="$USER_HOME" "$@"; }
 
 [ -d "$SRC/.git" ] || { echo "$SRC is not a git clone"; exit 1; }
 
