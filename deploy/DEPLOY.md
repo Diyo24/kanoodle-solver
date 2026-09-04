@@ -1,78 +1,119 @@
 # Deploying to a Jetson Xavier NX
 
-The server serves both the API (`POST /solve`) and the GUI from one origin, so
-there is no CORS configuration and no separate static host.
+The server serves both the API (`POST /solve`) and the GUI from one origin,
+so there is no CORS configuration and no separate static host.
 
-## 1. Toolchain on the Xavier (aarch64)
+Tested on: Ubuntu 20.04.6 aarch64 (JetPack), GHC 9.4.8, cabal 3.16.
+
+## 1. Toolchain
+
+ghcup installs entirely under `$HOME` and needs no root:
 
 ```sh
-curl --proto '=https' --tlsv1.2 -sSf https://get-ghcup.haskell.org | sh
+mkdir -p ~/.ghcup/bin
+wget -q -O ~/.ghcup/bin/ghcup https://downloads.haskell.org/~ghcup/aarch64-linux-ghcup
+chmod +x ~/.ghcup/bin/ghcup
+export PATH="$HOME/.ghcup/bin:$PATH"
+
+ghcup config set downloader Wget   # only needed if curl is absent
 ghcup install ghc 9.4.8 && ghcup set ghc 9.4.8
 ghcup install cabal --set
 ```
 
-Needs ~10 GB free. Check with `df -h /` before starting — the stock eMMC is
-tight. Building the servant/warp tree on Carmel cores takes noticeably longer
-than on a desktop.
+GHC links against `libgmp`, `libnuma` and `libtinfo`. If you have root, the
+`-dev` packages provide them:
+
+```sh
+sudo apt-get install -y curl libgmp-dev libnuma-dev libncurses-dev pkg-config
+```
+
+**Without root**, the `-dev` packages are only supplying unversioned symlinks,
+and you can create those yourself — the shared objects are already present on
+a stock JetPack image:
+
+```sh
+mkdir -p ~/.local/lib
+ln -sf /lib/aarch64-linux-gnu/libgmp.so.10  ~/.local/lib/libgmp.so
+ln -sf /lib/aarch64-linux-gnu/libnuma.so.1  ~/.local/lib/libnuma.so
+ln -sf /lib/aarch64-linux-gnu/libtinfo.so.6 ~/.local/lib/libtinfo.so
+export LIBRARY_PATH="$HOME/.local/lib:$LIBRARY_PATH"
+```
+
+`LIBRARY_PATH` matters: `cabal build --extra-lib-dirs=...` applies only to the
+local package, not to the ~90 dependencies, so it is not enough on its own.
 
 ## 2. Build
 
 ```sh
-git clone <your-repo> ~/kanoodle-solver && cd ~/kanoodle-solver/haskell-solver
+cd ~/kanoodle-solver/haskell-solver
 cabal update
-cabal build
-cabal list-bin kanoodle-solver   # prints the binary path
+cabal build          # keep LIBRARY_PATH exported if you used the symlinks
+cabal list-bin kanoodle-solver
 ```
 
-## 3. Install
+Expect this to take a while on six Carmel cores.
+
+## 3a. Install as a system service (needs root)
 
 ```sh
-sudo mkdir -p /opt/kanoodle/bin
-sudo cp "$(cabal list-bin kanoodle-solver)" /opt/kanoodle/bin/
-sudo cp -r ~/kanoodle-solver/gui /opt/kanoodle/gui
-
-sudo cp ~/kanoodle-solver/deploy/kanoodle.service /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now kanoodle
-systemctl status kanoodle
+sudo bash ~/kanoodle-solver/deploy/install.sh
 ```
 
-Verify locally before exposing it:
+Copies the binary and GUI to `/opt/kanoodle`, installs `kanoodle.service` and
+`cloudflared-quick.service`, starts both, and prints the public URL. This is
+the only option that survives a reboot.
+
+## 3b. Run without root
 
 ```sh
-curl -sS localhost:8080/ | head -5          # GUI
-curl -sS -X POST localhost:8080/solve \
-  -H 'Content-Type: application/json' \
-  -d '{"board":[],"pieces":[]}'             # API
+cd ~/kanoodle-solver/haskell-solver
+export KANOODLE_STATIC_DIR="$HOME/kanoodle-solver/gui"
+setsid nohup "$(cabal list-bin kanoodle-solver)" > ~/server.log 2>&1 < /dev/null &
+setsid nohup ~/bin/cloudflared tunnel --url http://localhost:8080 > ~/tunnel.log 2>&1 < /dev/null &
+grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' ~/tunnel.log | head -1
 ```
 
-## 4. Expose via Cloudflare Tunnel
+`setsid` and the stdin redirect matter — without them the processes die with
+your ssh session, or hold it open so it never returns.
 
-No router ports are opened and your home IP stays private. TLS terminates at
-Cloudflare, which is what makes the browser accept the page at all.
+Verify locally either way:
 
 ```sh
-# arm64 build
-curl -L -o cloudflared.deb \
-  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64.deb
-sudo dpkg -i cloudflared.deb
+wget -qO- http://127.0.0.1:8080/ | head -3
+wget -qO- --header='Content-Type: application/json' \
+  --post-data='{"board":[],"pieces":[]}' http://127.0.0.1:8080/solve
+```
 
+## 4. Exposing it
+
+`cloudflared` runs fine as a plain user binary — the `.deb` is not required:
+
+```sh
+mkdir -p ~/bin
+wget -q -O ~/bin/cloudflared \
+  https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-arm64
+chmod +x ~/bin/cloudflared
+```
+
+A **Quick Tunnel** needs no account and no domain, but its hostname is random
+and changes on every restart:
+
+```sh
+journalctl -u cloudflared-quick | grep trycloudflare   # current URL
+```
+
+If you later buy a domain and delegate it to Cloudflare, switch to a **named**
+tunnel for a stable hostname — see `cloudflared-config.yml`:
+
+```sh
 cloudflared tunnel login
 cloudflared tunnel create kanoodle
 cloudflared tunnel route dns kanoodle kanoodle.example.com
 ```
 
-Copy `deploy/cloudflared-config.yml` to `/etc/cloudflared/config.yml`, fill in
-the tunnel ID and hostname, then:
-
-```sh
-sudo cloudflared service install
-sudo systemctl enable --now cloudflared
-```
+Neither form opens a router port or exposes your home IP.
 
 ## Configuration
-
-The server reads these at startup; the systemd unit sets all four.
 
 | Variable | Default | Purpose |
 |---|---|---|
@@ -81,13 +122,14 @@ The server reads these at startup; the systemd unit sets all four.
 | `KANOODLE_STATIC_DIR` | `../gui` | Directory served at `/`. |
 | `KANOODLE_TIMEOUT_SECONDS` | `10` | Abandons a search that runs long. |
 
+The solve timeout needs the threaded RTS; the executable is built with
+`-threaded` for exactly this reason. Without it every request fails in
+`getSystemTimerManager`.
+
 ## Updating
 
 ```sh
 cd ~/kanoodle-solver && git pull
 cd haskell-solver && cabal build
-sudo systemctl stop kanoodle
-sudo cp "$(cabal list-bin kanoodle-solver)" /opt/kanoodle/bin/
-sudo cp -r ~/kanoodle-solver/gui/. /opt/kanoodle/gui/
-sudo systemctl start kanoodle
+sudo bash ~/kanoodle-solver/deploy/install.sh    # re-installs and restarts
 ```
