@@ -113,6 +113,35 @@ cloudflared tunnel route dns kanoodle kanoodle.example.com
 
 Neither form opens a router port or exposes your home IP.
 
+## 5. Automatic redeploy on push
+
+`install.sh` registers a timer that polls GitHub every five minutes. On a new
+commit it pulls, rebuilds, and restarts the server — but only if the build
+succeeded, so a commit that fails to compile leaves the running version up.
+
+This requires the checkout on the board to be a real clone:
+
+```sh
+cd ~/kanoodle-solver
+git init -q
+git remote add origin https://github.com/Diyo24/kanoodle-solver.git
+git fetch origin main
+git reset --hard origin/main
+```
+
+Watch it:
+
+```sh
+systemctl list-timers kanoodle-deploy   # when it next runs
+journalctl -u kanoodle-deploy -n 30     # what it did
+sudo systemctl start kanoodle-deploy    # force a run now
+```
+
+The tunnel is deliberately left alone during a redeploy. `cloudflared-quick`
+uses `Wants=` rather than `Requires=` on the server, so restarting the server
+does not stop the tunnel — otherwise every deploy would hand out a new
+`trycloudflare.com` hostname.
+
 ## Configuration
 
 | Variable | Default | Purpose |

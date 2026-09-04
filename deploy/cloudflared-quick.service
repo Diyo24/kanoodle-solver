@@ -2,7 +2,9 @@
 Description=Cloudflare Quick Tunnel for Kanoodle
 After=network-online.target kanoodle.service
 Wants=network-online.target
-Requires=kanoodle.service
+# Wants, not Requires: restarting the server must not stop the tunnel,
+# or every redeploy would hand out a new trycloudflare hostname.
+Wants=kanoodle.service
 
 [Service]
 Type=simple

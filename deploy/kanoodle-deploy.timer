@@ -1,0 +1,11 @@
+[Unit]
+Description=Check git for new Kanoodle commits
+
+[Timer]
+OnBootSec=3min
+OnUnitActiveSec=5min
+# Skip a run if the previous build is still going.
+AccuracySec=30s
+
+[Install]
+WantedBy=timers.target

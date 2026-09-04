@@ -49,9 +49,21 @@ fi
 install -m 0644 "$SRC/deploy/kanoodle.service" /etc/systemd/system/kanoodle.service
 install -m 0644 "$SRC/deploy/cloudflared-quick.service" /etc/systemd/system/cloudflared-quick.service
 
+# Auto-deploy: poll git, rebuild, restart the server on a new commit.
+if [ -d "$SRC/.git" ]; then
+  install -m 0755 "$SRC/deploy/auto-deploy.sh" /opt/kanoodle/auto-deploy.sh
+  sed "s/^Environment=BUILD_USER=.*/Environment=BUILD_USER=$TARGET_USER/"     "$SRC/deploy/kanoodle-deploy.service" > /etc/systemd/system/kanoodle-deploy.service
+  install -m 0644 "$SRC/deploy/kanoodle-deploy.timer" /etc/systemd/system/kanoodle-deploy.timer
+  DEPLOY_TIMER=yes
+else
+  echo "==> $SRC is not a git clone; skipping the auto-deploy timer"
+  DEPLOY_TIMER=no
+fi
+
 systemctl daemon-reload
 systemctl enable --now kanoodle.service
 systemctl enable --now cloudflared-quick.service
+[ "$DEPLOY_TIMER" = yes ] && systemctl enable --now kanoodle-deploy.timer
 
 echo
 echo "==> waiting for the tunnel to register..."
