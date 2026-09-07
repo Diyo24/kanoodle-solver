@@ -1,10 +1,21 @@
-# Place at /etc/cloudflared/config.yml on the Xavier.
-# Replace <TUNNEL-ID> and the hostname with your own.
+# Named tunnel for the Jetson. Place at /etc/cloudflared/config.yml.
+#
+# Created once, on the board, with:
+#   cloudflared tunnel login                 # browser auth, picks the zone
+#   cloudflared tunnel create kanoodle       # prints the tunnel UUID
+#   cloudflared tunnel route dns kanoodle kanoodle.diyarpolat.de
+#
+# `create` writes ~/.cloudflared/<UUID>.json. Move it to /etc/cloudflared/,
+# chown it to the cloudflared user, and substitute the UUID below.
+#
+# Unlike a Quick Tunnel the hostname is permanent: it survives restarts,
+# redeploys and reboots. Still no open router port, still no public home IP.
 
 tunnel: <TUNNEL-ID>
 credentials-file: /etc/cloudflared/<TUNNEL-ID>.json
 
+# Cloudflare terminates TLS; the origin stays plain HTTP on loopback.
 ingress:
-  - hostname: kanoodle.example.com
+  - hostname: kanoodle.diyarpolat.de
     service: http://localhost:8080
   - service: http_status:404

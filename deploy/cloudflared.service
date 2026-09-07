@@ -1,0 +1,23 @@
+[Unit]
+Description=Cloudflare Named Tunnel for Kanoodle
+After=network-online.target
+Wants=network-online.target
+# Wants, not Requires: restarting the server must not stop the tunnel.
+Wants=kanoodle.service
+
+[Service]
+Type=simple
+User=cloudflared
+ExecStart=/usr/local/bin/cloudflared --no-autoupdate --config /etc/cloudflared/config.yml tunnel run
+Restart=always
+RestartSec=5
+
+# Outbound-only, so it never needs privileged ports or root.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadOnlyPaths=/etc/cloudflared
+
+[Install]
+WantedBy=multi-user.target

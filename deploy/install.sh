@@ -48,6 +48,24 @@ fi
 # --- services ----------------------------------------------------------------
 install -m 0644 "$SRC/deploy/kanoodle.service" /etc/systemd/system/kanoodle.service
 install -m 0644 "$SRC/deploy/cloudflared-quick.service" /etc/systemd/system/cloudflared-quick.service
+install -m 0644 "$SRC/deploy/cloudflared.service" /etc/systemd/system/cloudflared.service
+
+# Named tunnel if it has been set up (see cloudflared-config.yml), Quick Tunnel
+# otherwise. The named one needs credentials, so it gets a real account to own
+# them; DynamicUser cannot hold stable ownership of /etc/cloudflared.
+if [ -f /etc/cloudflared/config.yml ]; then
+  id -u cloudflared >/dev/null 2>&1 || useradd --system --no-create-home --shell /usr/sbin/nologin cloudflared
+  chown -R cloudflared:cloudflared /etc/cloudflared
+  chmod 0750 /etc/cloudflared
+  chmod 0640 /etc/cloudflared/*.json 2>/dev/null || true
+  TUNNEL_UNIT=cloudflared.service
+  OTHER_UNIT=cloudflared-quick.service
+  echo "==> named tunnel: /etc/cloudflared/config.yml found"
+else
+  TUNNEL_UNIT=cloudflared-quick.service
+  OTHER_UNIT=cloudflared.service
+  echo "==> no /etc/cloudflared/config.yml; falling back to a Quick Tunnel"
+fi
 
 # Auto-deploy: poll git, rebuild, restart the server on a new commit.
 if [ -d "$SRC/.git" ]; then
@@ -62,24 +80,33 @@ fi
 
 systemctl daemon-reload
 systemctl enable --now kanoodle.service
-systemctl enable --now cloudflared-quick.service
+systemctl disable --now "$OTHER_UNIT" >/dev/null 2>&1 || true
+systemctl enable --now "$TUNNEL_UNIT"
 [ "$DEPLOY_TIMER" = yes ] && systemctl enable --now kanoodle-deploy.timer
 
 echo
-echo "==> waiting for the tunnel to register..."
-for _ in $(seq 1 20); do
-  URL="$(journalctl -u cloudflared-quick -n 200 --no-pager 2>/dev/null \
-        | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)"
-  [ -n "$URL" ] && break
-  sleep 2
-done
+if [ "$TUNNEL_UNIT" = cloudflared.service ]; then
+  # A named tunnel's hostname is fixed, so read it out of the config rather
+  # than scraping the log for a random one.
+  URL="$(sed -n 's/^[[:space:]]*-\{0,1\}[[:space:]]*hostname:[[:space:]]*//p' \
+        /etc/cloudflared/config.yml | head -1)"
+  [ -n "$URL" ] && URL="https://$URL"
+else
+  echo "==> waiting for the tunnel to register..."
+  for _ in $(seq 1 20); do
+    URL="$(journalctl -u cloudflared-quick -n 200 --no-pager 2>/dev/null \
+          | grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' | tail -1 || true)"
+    [ -n "$URL" ] && break
+    sleep 2
+  done
+fi
 
 echo
-systemctl --no-pager --lines=0 status kanoodle.service      | head -4 || true
-systemctl --no-pager --lines=0 status cloudflared-quick.service | head -4 || true
+systemctl --no-pager --lines=0 status kanoodle.service | head -4 || true
+systemctl --no-pager --lines=0 status "$TUNNEL_UNIT"   | head -4 || true
 echo
 if [ -n "${URL:-}" ]; then
   echo "PUBLIC URL: $URL"
 else
-  echo "Tunnel URL not found yet. Check: journalctl -u cloudflared-quick | grep trycloudflare"
+  echo "Tunnel URL not found yet. Check: journalctl -u $TUNNEL_UNIT"
 fi

@@ -102,16 +102,30 @@ and changes on every restart:
 journalctl -u cloudflared-quick | grep trycloudflare   # current URL
 ```
 
-If you later buy a domain and delegate it to Cloudflare, switch to a **named**
-tunnel for a stable hostname — see `cloudflared-config.yml`:
+A **named tunnel** gives a permanent hostname instead. It needs `diyarpolat.de`
+delegated to Cloudflare (nameservers changed at IONOS), then, on the board:
 
 ```sh
-cloudflared tunnel login
-cloudflared tunnel create kanoodle
-cloudflared tunnel route dns kanoodle kanoodle.example.com
+cloudflared tunnel login                                      # browser auth
+cloudflared tunnel create kanoodle                            # prints the UUID
+cloudflared tunnel route dns kanoodle kanoodle.diyarpolat.de  # creates the CNAME
+
+sudo install -d -m 0750 /etc/cloudflared
+sudo install -m 0640 ~/.cloudflared/<UUID>.json /etc/cloudflared/
+sudo cp deploy/cloudflared-config.yml /etc/cloudflared/config.yml
+sudo sed -i "s/<TUNNEL-ID>/<UUID>/g" /etc/cloudflared/config.yml
 ```
 
-Neither form opens a router port or exposes your home IP.
+Then re-run `install.sh`. It switches to `cloudflared.service` whenever
+`/etc/cloudflared/config.yml` exists, creates the `cloudflared` system user
+that owns the credentials, and disables the Quick Tunnel; with no config it
+falls back to the Quick Tunnel as before.
+
+The landing page at the apex (`diyarpolat.de`) is **not** served from here —
+it lives on Cloudflare Pages, so it stays up when the board is off, mid-build
+or unreachable. Only `kanoodle.diyarpolat.de` comes from the Jetson.
+
+Neither tunnel form opens a router port or exposes your home IP.
 
 ## 5. Automatic redeploy on release
 
