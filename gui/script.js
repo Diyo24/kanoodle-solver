@@ -135,9 +135,6 @@ class KanoodleSolver {
     document
       .getElementById("clear-btn")
       .addEventListener("click", () => this.clearBoard());
-    document
-      .getElementById("new-puzzle-btn")
-      .addEventListener("click", () => this.newPuzzle());
     
     // Rotation event listeners
     document.getElementById('rotate-left-btn').addEventListener('click', () => this.rotateSelectedPiece(-90));
@@ -192,7 +189,7 @@ class KanoodleSolver {
     });
   }
 
-  // Update renderBoard method für besseres Hover-Feedback
+  // Rebuilds the grid and caches the cell elements for the hover path.
   renderBoard() {
     const container = document.getElementById("board-grid");
     container.innerHTML = "";
@@ -214,14 +211,18 @@ class KanoodleSolver {
                 cell.title = `Piece: ${this.board[y][x].pieceId}`;
             }
 
-            // Event listeners für Hover und Click
+            // mouseenter only. The grid owns mouseleave, so sliding
+            // between cells no longer tears the ghost down and back up.
             cell.addEventListener("mouseenter", () => this.handleCellHover(x, y));
-            cell.addEventListener("mouseleave", () => this.handleCellLeave());
-            cell.addEventListener("click", () => this.placePiece(x, y));
+            cell.addEventListener("click", () => this.handleCellClick(x, y));
 
             container.appendChild(cell);
         }
     }
+
+    container.onmouseleave = () => this.handleCellLeave();
+    // Cached once per render; the hover path must never call querySelectorAll.
+    this.cellEls = Array.from(container.children);
 }
 
   handleCellHover(x, y) {
@@ -236,56 +237,88 @@ class KanoodleSolver {
     this.clearPreview();
   }
 
+  // The cell you point at should be *under* the piece, not at the corner of
+  // its bounding box. For an L or S shape, shape[0][0] is empty, so anchoring
+  // there made the piece appear offset down-right of the cursor. Anchor on the
+  // filled cell nearest the shape's centre of mass instead.
+  getShapeAnchor(shape) {
+    let sumX = 0, sumY = 0, n = 0;
+    for (let py = 0; py < shape.length; py++) {
+      for (let px = 0; px < shape[py].length; px++) {
+        if (shape[py][px]) { sumX += px; sumY += py; n++; }
+      }
+    }
+    if (!n) return { ax: 0, ay: 0 };
+    const cx = sumX / n, cy = sumY / n;
+
+    let best = null, bestDist = Infinity;
+    for (let py = 0; py < shape.length; py++) {
+      for (let px = 0; px < shape[py].length; px++) {
+        if (!shape[py][px]) continue;
+        const d = (px - cx) ** 2 + (py - cy) ** 2;
+        if (d < bestDist) { bestDist = d; best = { ax: px, ay: py }; }
+      }
+    }
+    return best;
+  }
+
+  // Cursor cell -> top-left origin, which is what canPlacePiece and
+  // setPieceOnBoard speak (and what the solver returns).
+  anchorToOrigin(piece, x, y) {
+    const { ax, ay } = this.getShapeAnchor(piece.shape);
+    return { ox: x - ax, oy: y - ay };
+  }
+
+  cellAt(x, y) {
+    if (!this.cellEls) return null;
+    const w = this.board[0].length;
+    if (x < 0 || x >= w || y < 0 || y >= this.board.length) return null;
+    return this.cellEls[y * w + x];
+  }
+
   updatePreview() {
     this.clearPreview();
-    
+
     if (!this.selectedPiece || !this.hoveredCell) return;
-    
+
     const { x, y } = this.hoveredCell;
-    
-    // Check if piece can be placed (for valid/invalid styling)
-    const canPlace = this.canPlacePiece(this.selectedPiece, x, y);
-    const validPosition = this.isValidPreviewPosition(this.selectedPiece, x, y);
-    
-    // Only show preview if position is somewhat valid (within bounds)
-    if (!validPosition) return;
-    
+    const { ox, oy } = this.anchorToOrigin(this.selectedPiece, x, y);
+    const canPlace = this.canPlacePiece(this.selectedPiece, ox, oy);
     const shape = this.selectedPiece.shape;
-    
+
+    // No early return on an invalid position. Showing a red ghost at the edge
+    // is the whole point; the old code drew nothing exactly where you were
+    // most likely to be making a mistake.
+    this.previewCells = [];
     for (let py = 0; py < shape.length; py++) {
-        for (let px = 0; px < shape[py].length; px++) {
-            if (shape[py][px] === 1) {
-                const boardX = x + px;
-                const boardY = y + py;
-                
-                if (boardX >= 0 && boardX < 11 && boardY >= 0 && boardY < 5) {
-                    const cellIndex = boardY * 11 + boardX;
-                    const cell = document.querySelectorAll('.board-cell')[cellIndex];
-                    
-                    if (cell) {
-                        cell.classList.add('preview-cell');
-                        cell.style.backgroundColor = canPlace ? 
-                            this.selectedPiece.color + '80' :  // 50% opacity for valid
-                            '#f44336' + '80';                  // Red for invalid
-                        cell.style.border = canPlace ? 
-                            '2px solid ' + this.selectedPiece.color : 
-                            '2px solid #f44336';
-                    }
-                }
-            }
+      for (let px = 0; px < shape[py].length; px++) {
+        if (!shape[py][px]) continue;
+        const cell = this.cellAt(ox + px, oy + py);
+        if (!cell) continue;               // off-board part simply isn't drawn
+        cell.classList.add('ghost', canPlace ? 'ghost-valid' : 'ghost-invalid');
+        if (canPlace) {
+          cell.style.backgroundColor = this.selectedPiece.color + 'aa';
+          cell.style.borderColor = this.selectedPiece.color;
         }
+        this.previewCells.push(cell);
+      }
     }
   }
 
   clearPreview() {
-    document.querySelectorAll('.board-cell').forEach(cell => {
-        cell.classList.remove('preview-cell');
-        if (cell.classList.contains('empty')) {
-            cell.style.backgroundColor = '#f5f5f5';
-            cell.style.border = '1px solid #ddd';
-        }
-        // Keep original styling for occupied cells
+    // Only the cells we actually touched, instead of walking all 55 and
+    // rewriting their inline styles on every mouseenter.
+    (this.previewCells || []).forEach(cell => {
+      cell.classList.remove('ghost', 'ghost-valid', 'ghost-invalid');
+      cell.style.backgroundColor = '';
+      cell.style.borderColor = '';
+      if (cell.classList.contains('occupied')) {
+        const x = Number(cell.dataset.x), y = Number(cell.dataset.y);
+        const occupant = this.board[y] && this.board[y][x];
+        if (occupant) cell.style.backgroundColor = occupant.color;
+      }
     });
+    this.previewCells = [];
   }
 
   // === TRANSFORMATION METHODS ===
@@ -368,7 +401,6 @@ class KanoodleSolver {
   // Rotate the selected piece
   rotateSelectedPiece(degrees) {
     if (!this.selectedPiece) {
-      alert('Please select a piece first!');
       return;
     }
     
@@ -388,7 +420,6 @@ class KanoodleSolver {
   // Flip the selected piece
   flipSelectedPiece(direction) {
     if (!this.selectedPiece) {
-      alert('Please select a piece first!');
       return;
     }
     
@@ -409,7 +440,6 @@ class KanoodleSolver {
   // Reset the selected piece to original state
   resetSelectedPiece() {
     if (!this.selectedPiece || !this.selectedPieceOriginal) {
-      alert('No piece selected to reset!');
       return;
     }
     
@@ -581,55 +611,61 @@ class KanoodleSolver {
 }
 
 // Place a piece on the board (called when clicking)
-placePiece(x, y) {
-    if (!this.selectedPiece) {
-        alert('Please select a piece first!');
+handleCellClick(x, y) {
+    // A click on an occupied cell always takes that piece back, whether or not
+    // something is selected. One rule, no modes to remember.
+    if (this.board[y][x] !== null) {
+        this.removePieceAt(x, y);
         return;
     }
 
-    if (this.canPlacePiece(this.selectedPiece, x, y)) {
-        this.setPieceOnBoard(this.selectedPiece, x, y);
-        
-        // Clear selection and hide controls
-        this.selectedPiece = null;
-        this.selectedPieceOriginal = null;
-        this.selectedPieceTransforms = { rotation: 0, flipH: false, flipV: false };
-        this.clearPreview();
-        this.hideRotationControls();
-        
-        // Re-render everything
-        this.renderBoard();
-        this.renderPieces();
-        
-        // Clear visual selection
-        document.querySelectorAll('.piece-wrapper').forEach(el => {
-            el.classList.remove('selected');
-        });
-    } else {
-        // Visual feedback for failed placement
-        const selectedWrapper = document.querySelector('.piece-wrapper.selected');
-        if (selectedWrapper) {
-            selectedWrapper.style.borderColor = '#f44336';
-            selectedWrapper.style.background = '#ffebee';
-            setTimeout(() => {
-                selectedWrapper.style.borderColor = '#4CAF50';
-                selectedWrapper.style.background = 'linear-gradient(135deg, #e8f5e8, #c8e6c9)';
-            }, 300);
-        }
-        
-        // Flash the board cell red
-        const cells = document.querySelectorAll('.board-cell');
-        const cellIndex = y * 11 + x; // 11 is board width
-        if (cells[cellIndex]) {
-            const originalBg = cells[cellIndex].style.backgroundColor;
-            cells[cellIndex].style.backgroundColor = '#ffcdd2';
-            setTimeout(() => {
-                cells[cellIndex].style.backgroundColor = originalBg;
-            }, 300);
-        }
-        
-        alert('Cannot place piece here!');
+    if (!this.selectedPiece) {
+        return;
     }
+
+    const { ox, oy } = this.anchorToOrigin(this.selectedPiece, x, y);
+
+    if (!this.canPlacePiece(this.selectedPiece, ox, oy)) {
+        // Feedback is the shake plus the red ghost, not a modal.
+        const wrapper = document.querySelector('.piece-wrapper.selected');
+        if (wrapper) {
+            wrapper.classList.remove('shake');
+            void wrapper.offsetWidth;          // restart the animation
+            wrapper.classList.add('shake');
+        }
+        return;
+    }
+
+    this.setPieceOnBoard(this.selectedPiece, ox, oy);
+
+    this.selectedPiece = null;
+    this.selectedPieceOriginal = null;
+    this.selectedPieceTransforms = { rotation: 0, flipH: false, flipV: false };
+    this.clearPreview();
+    this.hideRotationControls();
+    this.renderBoard();
+    this.renderPieces();
+    document.querySelectorAll('.piece-wrapper').forEach(el => el.classList.remove('selected'));
+}
+
+// Take a placed piece back off the board. renderPieces() rebuilds the tray
+// from what is on the board, so it reappears there on its own.
+removePieceAt(x, y) {
+    const occupant = this.board[y][x];
+    if (!occupant) return;
+
+    const id = occupant.pieceId;
+    for (let by = 0; by < this.board.length; by++) {
+        for (let bx = 0; bx < this.board[by].length; bx++) {
+            if (this.board[by][bx] && this.board[by][bx].pieceId === id) {
+                this.board[by][bx] = null;
+            }
+        }
+    }
+
+    this.clearPreview();
+    this.renderBoard();
+    this.renderPieces();
 }
 
 // Actually set the piece on the board
@@ -653,32 +689,6 @@ setPieceOnBoard(piece, startX, startY) {
     }
 }
 
-// Check if position is valid for preview
-isValidPreviewPosition(piece, x, y) {
-    if (!piece || !piece.shape) return false;
-    
-    const shape = piece.shape;
-    const boardHeight = this.board.length;
-    const boardWidth = this.board[0].length;
-    
-    for (let py = 0; py < shape.length; py++) {
-        for (let px = 0; px < shape[py].length; px++) {
-            if (shape[py][px] === 1) {
-                const boardX = x + px;
-                const boardY = y + py;
-                
-                // Check boundaries
-                if (boardX < 0 || boardX >= boardWidth || 
-                    boardY < 0 || boardY >= boardHeight) {
-                    return false;
-                }
-            }
-        }
-    }
-    
-    return true;
-}
-
   async solvePuzzle() {
     this.showLoading();
 
@@ -688,9 +698,6 @@ isValidPreviewPosition(piece, x, y) {
         pieces: this.pieces,
     };
     
-    console.log("Original board:", this.board);
-    console.log("Converted board:", convertedBoard);
-    console.log("Sending request data:", JSON.stringify(requestData, null, 2));
 
     try {
         const response = await fetch("/solve", {
@@ -699,16 +706,13 @@ isValidPreviewPosition(piece, x, y) {
             body: JSON.stringify(requestData),
         });
 
-        console.log("Response status:", response.status);
         
         if (!response.ok) {
             const errorText = await response.text();
-            console.log("Error response:", errorText);
             throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
         }
 
         const result = await response.json();
-        console.log("Success response:", result);
         
         if (result.success) {
             this.solution = result.solution;
@@ -718,46 +722,13 @@ isValidPreviewPosition(piece, x, y) {
         }
         
     } catch (error) {
-        console.log("Full error:", error);
-        console.log("Backend not available, using mock solution");
-        this.solution = this.generateMockSolution();
-        this.applySolutionToBoard();
+        // This used to fabricate a solution and apply it, so an unreachable
+        // backend looked exactly like a successful solve. Fail visibly.
+        console.error("Solve request failed:", error);
+        alert("Could not reach the solver. Please try again.");
     } finally {
         this.hideLoading();
     }
-}
-
-  // Bessere Mock Solution mit sicheren Positionen
-  generateMockSolution() {
-    const availablePieces = this.pieces.filter(piece => 
-        !this.getPlacedPieceIds().includes(piece.id)
-    );
-    
-    // Sicherere Positionen die garantiert im Board sind
-    const safePositions = [
-        { x: 2, y: 2 },
-        { x: 5, y: 2 },
-        { x: 8, y: 2 }
-    ];
-    
-    const mockSolution = [];
-    for (let i = 0; i < Math.min(3, availablePieces.length); i++) {
-        const piece = availablePieces[i];
-        const pos = safePositions[i];
-        
-        // Prüfe ob das Piece an der Position passt
-        if (pos && this.canPlacePiece(piece, pos.x, pos.y)) {
-            mockSolution.push({
-                id: piece.id,
-                shape: piece.shape,
-                color: piece.color,
-                position: pos,
-                rotation: 0
-            });
-        }
-    }
-    
-    return mockSolution;
 }
 
   showLoading() {
@@ -768,43 +739,11 @@ isValidPreviewPosition(piece, x, y) {
     document.getElementById("loading").classList.add("hidden");
   }
 
-  showSolution() {
-    const solutionDiv = document.getElementById("solution-display");
-    const stepsDiv = document.getElementById("solution-steps");
-
-    stepsDiv.innerHTML = "<p>Solution steps:</p>";
-    this.solution.forEach((piece, index) => {
-      const step = document.createElement("p");
-      step.textContent = `${index + 1}. Place ${piece.name} at (${
-        piece.position.x
-      }, ${piece.position.y})`;
-      stepsDiv.appendChild(step);
-    });
-
-    solutionDiv.classList.remove("hidden");
-  }
-
-  closeSolution() {
-    document.getElementById("solution-display").classList.add("hidden");
-  }
-
-  applySolution() {
-    if (this.solution) {
-      this.clearBoard();
-      this.solution.forEach((piece) => {
-        this.setPieceOnBoard(piece, piece.position.x, piece.position.y);
-      });
-      this.renderBoard();
-      this.renderPieces();
-    }
-    this.closeSolution();
-  }
-
   applySolutionToBoard() {
     if (!this.solution) return;
     
     // Stelle sicher dass das Board leer ist (außer bereits platzierte Pieces)
-    // this.clearBoard(); // Optional: Uncomment wenn du alles löschen willst
+
     
     // Platziere alle Pieces aus der Lösung
     this.solution.forEach((solutionPiece) => {
@@ -825,54 +764,9 @@ isValidPreviewPosition(piece, x, y) {
         }
     });
     
-    // Board und Pieces neu rendern
+    // Re-render the board and the tray
     this.renderBoard();
-    this.renderPieces(); // Versteckt die platzierten Pieces
-    
-    // Zeige Success-Message
-    this.showSuccessMessage();
-}
-
-showSuccessMessage() {
-    // Erstelle Success Overlay
-    const overlay = document.createElement('div');
-    overlay.className = 'success-overlay';
-    overlay.innerHTML = `
-        <div class="success-message">
-            <h2>🎉 Puzzle Solved!</h2>
-            <p>The solution has been applied to the board.</p>
-            <div class="success-buttons">
-                <button id="new-puzzle-success">New Puzzle</button>
-                <button id="close-success">Close</button>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(overlay);
-    
-    // Event Listeners für Buttons
-    document.getElementById('new-puzzle-success').addEventListener('click', () => {
-        this.clearBoard();
-        this.closeSuccessMessage();
-    });
-    
-    document.getElementById('close-success').addEventListener('click', () => {
-        this.closeSuccessMessage();
-    });
-    
-    // Auto-close nach 3 Sekunden
-    setTimeout(() => {
-        if (document.querySelector('.success-overlay')) {
-            this.closeSuccessMessage();
-        }
-    }, 3000);
-}
-
-closeSuccessMessage() {
-    const overlay = document.querySelector('.success-overlay');
-    if (overlay) {
-        overlay.remove();
-    }
+    this.renderPieces(); // placed pieces drop out of the tray
 }
 
   clearBoard() {
@@ -889,14 +783,6 @@ closeSuccessMessage() {
     document.querySelectorAll(".piece-wrapper").forEach((el) => {
       el.classList.remove("selected");
     });
-  }
-
-  newPuzzle() {
-    this.clearBoard();
-    this.pieces = this.createDefaultPieces();
-    this.selectedPiece = null;
-    this.solution = null;
-    this.renderPieces();
   }
 
   getPlacedPieceIds() {

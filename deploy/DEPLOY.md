@@ -28,7 +28,7 @@ sudo apt-get install -y curl libgmp-dev libnuma-dev libncurses-dev pkg-config
 ```
 
 **Without root**, the `-dev` packages are only supplying unversioned symlinks,
-and you can create those yourself — the shared objects are already present on
+and you can create those yourself. The shared objects are already present on
 a stock JetPack image:
 
 ```sh
@@ -73,7 +73,7 @@ setsid nohup ~/bin/cloudflared tunnel --url http://localhost:8080 > ~/tunnel.log
 grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' ~/tunnel.log | head -1
 ```
 
-`setsid` and the stdin redirect matter — without them the processes die with
+`setsid` and the stdin redirect matter. Without them the processes die with
 your ssh session, or hold it open so it never returns.
 
 Verify locally either way:
@@ -86,7 +86,7 @@ wget -qO- --header='Content-Type: application/json' \
 
 ## 4. Exposing it
 
-`cloudflared` runs fine as a plain user binary — the `.deb` is not required:
+`cloudflared` runs fine as a plain user binary, so the `.deb` is not required:
 
 ```sh
 mkdir -p ~/bin
@@ -121,8 +121,8 @@ Then re-run `install.sh`. It switches to `cloudflared.service` whenever
 that owns the credentials, and disables the Quick Tunnel; with no config it
 falls back to the Quick Tunnel as before.
 
-The landing page at the apex (`diyarpolat.de`) is **not** served from here —
-it lives on Cloudflare Pages, so it stays up when the board is off, mid-build
+The landing page at the apex (`diyarpolat.de`) is **not** served from here.
+It lives on Cloudflare Pages, so it stays up when the board is off, mid-build
 or unreachable. Only `kanoodle.diyarpolat.de` comes from the Jetson.
 
 Neither tunnel form opens a router port or exposes your home IP.
@@ -131,7 +131,7 @@ Neither tunnel form opens a router port or exposes your home IP.
 
 `install.sh` registers a timer that polls GitHub every five minutes and
 watches the **`release` branch**, not `main`. On a new commit there it pulls,
-rebuilds, and restarts the server — but only if the build succeeded, so a
+rebuilds, and restarts the server, but only if the build succeeded, so a
 commit that fails to compile leaves the running version up.
 
 Day-to-day work on `main` never touches the live site. Publishing is a
@@ -142,7 +142,7 @@ git checkout release && git merge main && git push origin release
 ```
 
 Within five minutes the board picks it up. Note that compiling is the only
-gate — nothing verifies the solver is correct, so test before promoting.
+gate: nothing verifies the solver is correct, so test before promoting.
 
 This requires the checkout on the board to be a real clone:
 
@@ -164,7 +164,7 @@ sudo systemctl start kanoodle-deploy    # force a run now
 
 The tunnel is deliberately left alone during a redeploy. `cloudflared-quick`
 uses `Wants=` rather than `Requires=` on the server, so restarting the server
-does not stop the tunnel — otherwise every deploy would hand out a new
+does not stop the tunnel. Otherwise every deploy would hand out a new
 `trycloudflare.com` hostname.
 
 ## Configuration

@@ -52,12 +52,12 @@ button {
     transform: translateY(-2px);
 }
 
-#clear-btn, #new-puzzle-btn {
+#clear-btn {
     background: #f44336;
     color: white;
 }
 
-#clear-btn:hover, #new-puzzle-btn:hover {
+#clear-btn:hover {
     background: #da190b;
     transform: translateY(-2px);
 }
@@ -198,46 +198,6 @@ h3 {
     border: 2px solid #333;
 }
 
-.board-cell.preview-valid {
-    border: 3px solid #4CAF50 !important;
-    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
-    transform: scale(1.05);
-    z-index: 10;
-    position: relative;
-}
-
-.board-cell.preview-invalid {
-    border: 3px solid #f44336 !important;
-    background: rgba(244, 67, 54, 0.3) !important;
-    box-shadow: 0 0 10px rgba(244, 67, 54, 0.5);
-    transform: scale(1.05);
-    z-index: 10;
-    position: relative;
-}
-
-/* Preview cell styling */
-.board-cell.preview-cell {
-    transition: all 0.2s ease;
-    transform: scale(1.05);
-    z-index: 10;
-    position: relative;
-}
-
-/* Modal Styles */
-.solution {
-    position: fixed;
-    top: 50%;
-    left: 50%;
-    transform: translate(-50%, -50%);
-    background: white;
-    padding: 30px;
-    border-radius: 15px;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-    z-index: 1000;
-    max-width: 600px;
-    width: 90%;
-}
-
 .loading {
     position: fixed;
     top: 50%;
@@ -268,85 +228,6 @@ h3 {
 
 .hidden {
     display: none;
-}
-
-/* Success Overlay */
-.success-overlay {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    z-index: 2000;
-    animation: fadeIn 0.3s ease;
-}
-
-.success-message {
-    background: linear-gradient(135deg, #4CAF50, #66BB6A);
-    color: white;
-    padding: 40px;
-    border-radius: 20px;
-    text-align: center;
-    box-shadow: 0 15px 35px rgba(0,0,0,0.3);
-    transform: scale(0.9);
-    animation: popIn 0.3s ease forwards;
-    max-width: 400px;
-    width: 90%;
-}
-
-.success-message h2 {
-    margin: 0 0 15px 0;
-    font-size: 2rem;
-    text-shadow: 0 2px 4px rgba(0,0,0,0.3);
-}
-
-.success-message p {
-    margin: 0 0 25px 0;
-    font-size: 1.1rem;
-    opacity: 0.9;
-}
-
-.success-buttons {
-    display: flex;
-    gap: 15px;
-    justify-content: center;
-}
-
-.success-buttons button {
-    padding: 12px 24px;
-    border: 2px solid white;
-    background: transparent;
-    color: white;
-    border-radius: 25px;
-    cursor: pointer;
-    font-weight: bold;
-    transition: all 0.3s ease;
-}
-
-.success-buttons button:hover {
-    background: white;
-    color: #4CAF50;
-    transform: translateY(-2px);
-}
-
-@keyframes fadeIn {
-    from { opacity: 0; }
-    to { opacity: 1; }
-}
-
-@keyframes popIn {
-    from { 
-        opacity: 0; 
-        transform: scale(0.5); 
-    }
-    to { 
-        opacity: 1; 
-        transform: scale(1); 
-    }
 }
 
 /* Rotation Controls Styles */
@@ -489,4 +370,49 @@ h3 {
     .rotation-buttons {
         grid-template-columns: 1fr;
     }
+}
+/* ---- placement feedback -------------------------------------------------
+   The ghost is drawn on the cells the piece would occupy, anchored on the
+   cell under the cursor. Invalid positions stay visible in red rather than
+   disappearing, which is what the old early-return did. */
+.board-cell.ghost {
+    transition: background-color .08s ease, border-color .08s ease;
+}
+
+.board-cell.ghost-valid {
+    border: 2px solid;                 /* colour set inline, per piece */
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .55);
+}
+
+.board-cell.ghost-invalid {
+    background-color: rgba(244, 67, 54, .35) !important;
+    border: 2px solid #f44336 !important;
+}
+
+/* Placed pieces are clickable: one click takes them back to the tray. */
+.board-cell.occupied {
+    cursor: pointer;
+}
+
+.board-cell.occupied:hover {
+    filter: brightness(1.12);
+    box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .25);
+}
+
+/* ---- rejected placement ------------------------------------------------- */
+@keyframes kanoodle-shake {
+    0%, 100% { transform: translateX(0) scale(1.15); }
+    20%      { transform: translateX(-6px) scale(1.15); }
+    40%      { transform: translateX(5px) scale(1.15); }
+    60%      { transform: translateX(-3px) scale(1.15); }
+    80%      { transform: translateX(2px) scale(1.15); }
+}
+
+.piece-wrapper.shake {
+    animation: kanoodle-shake .32s ease;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .piece-wrapper.shake { animation: none; }
+    .board-cell, .board-cell.ghost { transition: none; }
 }
