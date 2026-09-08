@@ -5,16 +5,11 @@ browser UI. Twelve irregular pieces must tile an 11x5 board exactly.
 
 **Live demo: [kanoodle.diyarpolat.de](https://kanoodle.diyarpolat.de)**
 
-Place a few pieces by hand, hit *Solve*, and the backtracking search fills in
-the rest. Or solve the empty board from scratch.
+Place a few pieces by hand, hit *Solve*, and the solver fills in the rest. Or
+solve the empty board from scratch.
 
-```
-  C C A A J J J L L L L
-  C C A J J I H H L K B
-  D D A G I I I H K K B
-  D D A G F I F K K E B
-  D G G G F F F E E E B
-```
+![The board solved: twelve pieces tiling the 11x5 grid with no gaps](docs/solved.png)
+
 *An exact tiling of the empty board, found in 20 ms.*
 
 ## How it works
